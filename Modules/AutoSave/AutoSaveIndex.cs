@@ -4,6 +4,7 @@
 */
 
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace MajdataEdit_Neo.Modules.AutoSave;
 
@@ -21,4 +22,9 @@ internal class AutoSaveIndex
     ///     自动保存文件列表
     /// </summary>
     public List<AutoSaveFileInfo> FilesInfo { get; set; } = new();
+}
+
+[JsonSerializable(typeof(AutoSaveIndex))]
+internal partial class AutoSaveIndexJsonContext : JsonSerializerContext
+{
 }

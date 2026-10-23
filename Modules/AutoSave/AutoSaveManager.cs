@@ -27,12 +27,16 @@ public sealed class AutoSaveManager
     /// <summary>
     /// 指示是否启用AutoSave功能
     /// </summary>
-    public bool Enabled 
-    { 
-        get => _enabled; 
+    public bool Enabled
+    {
+        get => _enabled;
         set
         {
             EnsureManagerIsInitialized();
+            if (_enabled == value)
+                return;
+
+            _enabled = value;
             if (value)
             {
                 _autoSaveTimer.Start();
@@ -106,7 +110,7 @@ public sealed class AutoSaveManager
         _instance = this;
         _recoverer = new AutoSaveRecoverer(autoSavers[0].Context, autoSavers[1].Context);
         // 本地存储者和全局存储者
-        if(autoSavers is not null)
+        if (autoSavers is not null)
         {
             _autoSavers.AddRange(autoSavers);
         }
@@ -117,7 +121,7 @@ public sealed class AutoSaveManager
     }
     public static void Initialize(IAutoSaveContext localAutoSaveContext, IAutoSaveContext globalAutoSaveContext)
     {
-        lock(_syncLock)
+        lock (_syncLock)
         {
             if (_instance is not null)
                 return;
@@ -141,11 +145,11 @@ public sealed class AutoSaveManager
     private void autoSaveTimer_Elapsed(object? sender, ElapsedEventArgs e)
     {
         // 若文件未改动，则跳过此次自动保存
-        if (!IsFileChanged || _autoSavers.Count == 0) 
+        if (!IsFileChanged || _autoSavers.Count == 0)
             return;
 
         // 执行保存行为
-        lock(_autoSavesSyncLock)
+        lock (_autoSavesSyncLock)
         {
             foreach (var saver in _autoSavers)
                 saver.DoAutoSave();
@@ -157,7 +161,7 @@ public sealed class AutoSaveManager
     }
     public void AddSaver<T>(T autoSaver) where T : IAutoSaver
     {
-        lock(_autoSavesSyncLock)
+        lock (_autoSavesSyncLock)
         {
             _autoSavers.Add(autoSaver);
         }
@@ -177,6 +181,6 @@ public sealed class AutoSaveManager
             return;
         }
 
-        throw new NotInitializedException();
+        throw new InvalidOperationException("AutoSaveManager has not been initialized.");
     }
 }

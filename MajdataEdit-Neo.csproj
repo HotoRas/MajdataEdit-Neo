@@ -1,73 +1,136 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
-	  <LangVersion>preview</LangVersion>
-    <Nullable>enable</Nullable>
-    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-    <BassLinuxX64TargetDir>runtimes/linux-x64/native</BassLinuxX64TargetDir>
-    <BassLinuxX86TargetDir>runtimes/linux-x86/native</BassLinuxX86TargetDir>
-    <BassLinuxARMTargetDir>runtimes/linux-arm/native</BassLinuxARMTargetDir>
-    <BassLinuxARM64TargetDir>runtimes/linux-arm64/native</BassLinuxARM64TargetDir>
-  </PropertyGroup>
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<LangVersion>preview</LangVersion>
+		<Version>6.2.0</Version>
+		<Nullable>enable</Nullable>
+		<BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+		<AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+		<RootNamespace>MajdataEdit_Neo</RootNamespace>
+		<NeutralResourcesLanguage>en-US</NeutralResourcesLanguage>
+		<ApplicationIcon>Assets/favicon.ico</ApplicationIcon>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <AvaloniaResource Include="Assets\**" />
-  </ItemGroup>
+	<PropertyGroup>
+		<IsWindows Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">true</IsWindows>
+		<IsOSX Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))' == 'true'">true</IsOSX>
+		<IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <AvaloniaXaml Remove="Modules\**" />
-    <Compile Remove="Modules\**" />
-    <EmbeddedResource Remove="Modules\**" />
-    <None Remove="Modules\**" />
-  </ItemGroup>
+	<PropertyGroup Condition="'$(IsWindows)'=='true'">
+		<DefineConstants>WINDOWS</DefineConstants>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(IsOSX)'=='true'">
+		<DefineConstants>OSX</DefineConstants>
+	</PropertyGroup>
+	<PropertyGroup Condition="'$(IsLinux)'=='true'">
+		<DefineConstants>LINUX</DefineConstants>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Avalonia" Version="11.2.5" />
-    <PackageReference Include="Avalonia.Desktop" Version="11.2.5" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.5" />
-    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.5" />
-    <!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
-    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.5">
-      <IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
-      <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-    <PackageReference Include="DiscordRichPresence" Version="1.2.1.24" />
-    <PackageReference Include="Lingfeng-bbben.AvaloniaEdit" Version="11.0.6.1" />
-    <PackageReference Include="Lingfeng-bbben.AvaloniaEdit.TextMate" Version="11.0.6" />
-    <PackageReference Include="Lingfeng-bbben.MajSimai" Version="1.14.0" />
-    <PackageReference Include="ManagedBass" Version="3.1.1" />
-    <PackageReference Include="Dove.Bass.Linux" Version="1.0.0" />
-    <PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />
-    <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
-    <PackageReference Include="websocketsharp.core" Version="1.0.1" />
-  </ItemGroup>
+	<ItemGroup>
+		<AvaloniaResource Include="Assets\**" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Compile Update="ViewLocator.cs">
-      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </Compile>
-  </ItemGroup>
+	<ItemGroup>
+		<AvaloniaResource Remove="Assets\Langs\Langs.resx" />
+		<AvaloniaResource Remove="Assets\Langs\Langs.zh-CN.resx" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Update="bass.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="simai.tmLanguage.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
+	<ItemGroup>
+		<AvaloniaXaml Remove="Modules\**" />
+		<Compile Remove="Modules\**" />
+		<EmbeddedResource Remove="Modules\**" />
+		<None Remove="Modules\**" />
+		<Compile Remove="Tests\**" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Assets\Modules\" />
-    <Folder Include="Models\MajWs\" />
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Avalonia" Version="12.1.2" />
+		<!--fork build 12.0.1 (local feed nuget-local/): includes #606 fix for drag-select past viewport edge UI freeze-->
+		<PackageReference Include="Avalonia.AvaloniaEdit" Version="12.0.1" />
+		<PackageReference Include="Avalonia.Desktop" Version="12.1.2" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+		<PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.2" />
+		<PackageReference Include="AvaloniaEdit.TextMate" Version="12.0.0" />
+		<PackageReference Include="Cimai" Version="0.1.6" />
+		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+		<PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
+		<PackageReference Include="ManagedBass" Version="4.0.2" />
+		<PackageReference Include="MessageBox.Avalonia" Version="12.0.0" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+		<PackageReference Include="PropertyGenerator.Avalonia" Version="1.3.1" />
+		<PackageReference Include="Semver" Version="3.0.0" />
+		<PackageReference Include="websocketsharp.core" Version="1.0.1" />
+		<PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
+		<PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="Modules\AutoSave\AutoSaveModule.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<Compile Update="Assets\Langs\Langs.Designer.cs">
+			<DesignTime>True</DesignTime>
+			<AutoGen>True</AutoGen>
+			<DependentUpon>Langs.resx</DependentUpon>
+		</Compile>
+		<Compile Update="ViewLocator.cs">
+			<CopyToOutputDirectory>Never</CopyToOutputDirectory>
+		</Compile>
+		<Compile Update="Views\RecoverWindow.axaml.cs">
+			<DependentUpon>RecoverWindow.axaml</DependentUpon>
+		</Compile>
+	</ItemGroup>
+
+	<!--runtimes按需复制-->
+	<ItemGroup>
+		<Content Remove="runtimes" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="simai.tmLanguage.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+	<ItemGroup>
+		<None Update="completions.json">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="xxlb.png">
+			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="Modules\AutoSave\AutoSaveModule.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Update="Assets\Langs\Langs.resx">
+			<Generator>PublicResXFileCodeGenerator</Generator>
+			<LastGenOutput>Langs.Designer.cs</LastGenOutput>
+			<CustomToolNamespace>MajdataEdit_Neo.Assets.Langs</CustomToolNamespace>
+		</EmbeddedResource>
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Update="Assets\Langs\Langs.resx">
+			<Generator>ResXFileCodeGenerator</Generator>
+			<LastGenOutput>Langs.Designer.cs</LastGenOutput>
+		</EmbeddedResource>
+	</ItemGroup>
+
+	<Target Name="DeletePdbs" AfterTargets="Publish">
+		<ItemGroup>
+			<PdbFiles Include="$(PublishDir)MajdataEdit-Neo.pdb" />
+			<PdbFiles Include="$(PublishDir)AutoSaveModule.pdb" />
+			<PdbFiles Include="$(PublishDir)libSkiaSharp.pdb" />
+			<PdbFiles Include="$(PublishDir)libHarfBuzzSharp.pdb" />
+		</ItemGroup>
+
+		<Delete Files="@(PdbFiles)" />
+	</Target>
 </Project>

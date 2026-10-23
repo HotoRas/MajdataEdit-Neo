@@ -185,6 +185,8 @@ publish/
 # Note: Comment the next line if you want to checkin your web deploy settings,
 # but database connection strings (with potential passwords) will be unencrypted
 *.pubxml
+# Keep our publish profile in-tree so the nightly CI can reuse it
+!Properties/PublishProfiles/*.pubxml
 *.publishproj
 
 # Microsoft Azure Web App publish settings. Comment the next line if you want to
@@ -205,6 +207,12 @@ PublishScripts/
 # NuGet v3's project.json files produces more ignorable files
 *.nuget.props
 *.nuget.targets
+
+# Keep the forked AvaloniaEdit package in-tree so CI can restore from the local feed
+# (see nuget.config). Overrides the *.nupkg / *.snupkg rules above.
+!nuget-local/
+!nuget-local/*.nupkg
+!nuget-local/*.snupkg
 
 # Microsoft Azure Build Output
 csx/
@@ -396,4 +404,14 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+*.run.xml
+riderPublish.xml
+
+#MajdataX
 /.autosave
+/EditorSetting.json
+/chart_edit.db
+
+#Claude Code
+.claude/
+/.mimocode

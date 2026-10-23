@@ -1,25 +1,31 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using MajdataEdit_Neo.Base;
 using ManagedBass;
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
 
 namespace MajdataEdit_Neo.Models;
 
 class TrackReader : IDisposable
 {
+    private bool _disposed;
+
     public TrackReader()
     {
-        Bass.Init();
+        if (File.Exists(MajEnv.MajdataViewBassDllFile))
+            NativeLibrary.Load(MajEnv.MajdataViewBassDllFile);
+        Bass.Init(Bass.NoSoundDevice);
     }
 
     public void Dispose()
     {
-        Bass.Free();
+        if (_disposed)
+            return;
+
+        _disposed = true;
         Bass.StreamFree(bgmStream);
+        bgmStream = 0;
+        Bass.Free();
     }
 
     public void Play(double time)
@@ -41,15 +47,15 @@ class TrackReader : IDisposable
         return Bass.ChannelBytes2Seconds(bgmStream, Bass.ChannelGetPosition(bgmStream));
     }
 
-    public bool isPlaying { get { return Bass.ChannelIsActive(bgmStream)==PlaybackState.Playing; } }
+    public bool isPlaying { get { return Bass.ChannelIsActive(bgmStream) == PlaybackState.Playing; } }
 
-    int bgmStream =0;
-    public TrackInfo ReadTrack (string dirpath)
+    int bgmStream = 0;
+    public TrackInfo ReadTrack(string dirpath)
     {
         var useOgg = File.Exists(dirpath + "/track.ogg");
         var filePath = dirpath + "/track" + (useOgg ? ".ogg" : ".mp3");
-        if(bgmStream is not 0)
-        Bass.StreamFree(bgmStream);
+        if (bgmStream is not 0)
+            Bass.StreamFree(bgmStream);
         var bgmDecode = Bass.CreateStream(filePath, 0L, 0L, BassFlags.Decode);
         bgmStream = Bass.CreateStream(filePath, 0, 0, BassFlags.Prescan);
         var bgmSample = Bass.SampleLoad(filePath, 0, 0, 1, BassFlags.Default);
@@ -66,7 +72,9 @@ class TrackReader : IDisposable
         }
         catch (Exception e)
         {
-            throw new Exception("mp3/ogg解码失败。\nMP3/OGG Decode fail.\n" + e.Message + Bass.LastError);
+            throw new Exception(
+                "mp3/ogg解码失败。\nMP3/OGG Decode fail.\n" + e.Message + Bass.LastError,
+                e);
         }
         finally
         {
@@ -79,7 +87,7 @@ class TrackReader : IDisposable
 public class TrackInfo
 {
     public double Length { get; }
-    public short[] RawWave { get; } = new short[0];
+    public short[] RawWave { get; } = Array.Empty<short>();
     private short[][] waveThumbnails = new short[3][];
     public short[] GetWaveThumbnails(int thumbLevel = 0)
     {
@@ -101,6 +109,5 @@ public class TrackInfo
         for (var i = 0; i < sampleCount; i = i + 50) waveThumbnails[1][i / 50] = RawWave[i];
         waveThumbnails[2] = new short[sampleCount / 100 + 1];
         for (var i = 0; i < sampleCount; i = i + 100) waveThumbnails[2][i / 100] = RawWave[i];
-
     }
 }

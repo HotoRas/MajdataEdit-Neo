@@ -1,450 +1,484 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Data;
 using Avalonia.Media;
-using Avalonia.Platform;
 using Avalonia.Rendering.SceneGraph;
 using Avalonia.Skia;
 using Avalonia.Threading;
+using Cimai;
 using MajdataEdit_Neo.Models;
-using MajSimai;
+using PropertyGenerator.Avalonia;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Text;
-using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
+using System.Threading;
 
 namespace MajdataEdit_Neo.Controls;
 
-class SimaiVisualizerControl : Control
+internal partial class SimaiVisualizerControl : Control
 {
-    //Set the properties
-    //The naming of this should be strictly followed "Xxx" and "XxxProperty"
-    public static readonly DirectProperty<SimaiVisualizerControl, double> TimeProperty =
-    AvaloniaProperty.RegisterDirect<SimaiVisualizerControl, double>(
-        nameof(Time),
-        o => o.Time,
-        (o,v)=>o.Time = v,
-        defaultBindingMode: Avalonia.Data.BindingMode.OneWay);
-    private double _time;
-    public double Time
+    // Shared Skia resources — created once, reused for the lifetime of the process.
+    private static readonly SKTypeface Typeface = SKTypeface.FromFamilyName(
+        OperatingSystem.IsWindows() ? "Consolas" :
+        OperatingSystem.IsMacOS() ? "Menlo" : "monospace",
+        SKFontStyle.Bold);
+    private static readonly SKFont TextFont = new(Typeface, 12);
+    private static readonly SKPaint Paint = new();
+    private static readonly SKPaint HanabiPaint = new()
     {
-        get { return _time; }
-        set { SetAndRaise(TimeProperty, ref _time, value); }
+        Style = SKPaintStyle.Fill,
+        Shader = SKShader.CreateLinearGradient(
+            new SKPoint(0, 0),
+            new SKPoint(1, 0),
+            [new SKColor(255, 0, 0, 100), new SKColor(255, 0, 0, 0)],
+            SKShaderTileMode.Clamp),
+    };
+    private static readonly SKPath CursorPath = CreateCursorPath();
+    private static SKPath CreateCursorPath()
+    {
+        var p = new SKPath();
+
+        p.MoveTo(-5, 0);
+        p.LineTo(5, 0);
+        p.LineTo(0, 8f);
+        p.Close();
+
+        return p;
     }
 
-    public static readonly DirectProperty<SimaiVisualizerControl, TrackInfo> TrackIfProperty =
-    AvaloniaProperty.RegisterDirect<SimaiVisualizerControl, TrackInfo>(
-        nameof(TrackIf),
-        o => o.TrackIf,
-        (o, v) => o.TrackIf = v,
-        defaultBindingMode: Avalonia.Data.BindingMode.OneWay);
-    private TrackInfo _track;
-    public TrackInfo TrackIf
+    private static readonly SKPath StarPath = CreateStarPath();
+    private static SKPath CreateStarPath()
     {
-        get { return _track; }
-        set { SetAndRaise(TrackIfProperty, ref _track, value); }
+        var p = new SKPath();
+
+        const float r = 4;
+        const float r2 = r * 0.8660254f;
+        const float r3 = r * 0.5f;
+
+        p.MoveTo(0, -r);
+        p.LineTo(0, r);
+
+        p.MoveTo(-r2, -r3);
+        p.LineTo(r2, r3);
+
+        p.MoveTo(-r2, r3);
+        p.LineTo(r2, -r3);
+
+        return p;
     }
 
-    public static readonly DirectProperty<SimaiVisualizerControl, float> ZoomLevelProperty =
-    AvaloniaProperty.RegisterDirect<SimaiVisualizerControl, float>(
-        nameof(ZoomLevel),
-        o => o.ZoomLevel,
-        (o, v) => o.ZoomLevel = v,
-        defaultBindingMode: Avalonia.Data.BindingMode.OneWay);
-    private float _zoomLevel;
-    public float ZoomLevel
-    {
-        get { return _zoomLevel; }
-        set { SetAndRaise(ZoomLevelProperty, ref _zoomLevel, value); }
-    }
+    private readonly AnimationState _animationState = new();
+    private int _animationFramePending;
 
-    public static readonly DirectProperty<SimaiVisualizerControl, SimaiChart> SimaiChartProperty =
-    AvaloniaProperty.RegisterDirect<SimaiVisualizerControl, SimaiChart>(
-        nameof(SimaiChart),
-        o => o.SimaiChart,
-        (o, v) => o.SimaiChart = v,
-        defaultBindingMode: Avalonia.Data.BindingMode.OneWay);
-    private SimaiChart _simaiChart;
-    public SimaiChart SimaiChart
-    {
-        get { return _simaiChart; }
-        set { SetAndRaise(SimaiChartProperty, ref _simaiChart, value); }
-    }
+    [GeneratedDirectProperty(DefaultBindingMode = BindingMode.OneWay)]
+    public partial double Time { get; set; }
 
-    public static readonly DirectProperty<SimaiVisualizerControl, float> OffsetProperty =
-   AvaloniaProperty.RegisterDirect<SimaiVisualizerControl, float>(
-       nameof(Offset),
-       o => o.Offset,
-       (o, v) => o.Offset = v,
-       defaultBindingMode: Avalonia.Data.BindingMode.OneWay);
-    private float _offset;
-    public float Offset
-    {
-        get { return _offset; }
-        set { SetAndRaise(OffsetProperty, ref _offset, value); }
-    }
+    [GeneratedDirectProperty(DefaultBindingMode = BindingMode.OneWay)]
+    public partial TrackInfo? TrackIf { get; set; }
 
-    public static readonly DirectProperty<SimaiVisualizerControl, double> CaretTimeProperty =
-    AvaloniaProperty.RegisterDirect<SimaiVisualizerControl, double>(
-        nameof(CaretTime),
-        o => o.CaretTime,
-        (o, v) => o.CaretTime = v,
-        defaultBindingMode: Avalonia.Data.BindingMode.OneWay);
-    private double _caretTime;
-    public double CaretTime
-    {
-        get { return _caretTime; }
-        set { SetAndRaise(CaretTimeProperty, ref _caretTime, value); }
-    }
+    [GeneratedDirectProperty(DefaultBindingMode = BindingMode.OneWay)]
+    public partial float ZoomLevel { get; set; }
 
-    public static readonly DirectProperty<SimaiVisualizerControl, bool> IsAnimatedProperty =
-    AvaloniaProperty.RegisterDirect<SimaiVisualizerControl, bool>(
-        nameof(IsAnimated),
-        o => o.IsAnimated,
-        (o, v) => o.IsAnimated = v,
-        defaultBindingMode: Avalonia.Data.BindingMode.OneWay);
-    private bool _isAnimated;
-    public bool IsAnimated
-    {
-        get { return _isAnimated; }
-        set { SetAndRaise(IsAnimatedProperty, ref _isAnimated, value); }
-    }
+    [GeneratedDirectProperty(DefaultBindingMode = BindingMode.OneWay)]
+    public partial SimaiChart Chart { get; set; } = SimaiChart.Empty;
 
-    //Override Render
-    private readonly GlyphRun _noSkia;
+    [GeneratedDirectProperty(DefaultBindingMode = BindingMode.OneWay)]
+    public partial List<(double, int, int)>? Signatures { get; set; }
+
+    [GeneratedDirectProperty(DefaultBindingMode = BindingMode.OneWay)]
+    public partial float Offset { get; set; }
+
+    [GeneratedDirectProperty(DefaultBindingMode = BindingMode.OneWay)]
+    public partial double CaretTime { get; set; }
+
+    [GeneratedDirectProperty(DefaultBindingMode = BindingMode.OneWay)]
+    public partial bool IsAnimated { get; set; }
+
     public SimaiVisualizerControl()
     {
         ClipToBounds = true;
-        var text = "Current rendering API is not Skia";
-        var glyphs = text.Select(ch => Typeface.Default.GlyphTypeface.GetGlyph(ch)).ToArray();
-        _noSkia = new GlyphRun(Typeface.Default.GlyphTypeface, 12, text.AsMemory(), glyphs);
 
-        AffectsRender<SimaiVisualizerControl>(TimeProperty, TrackIfProperty, ZoomLevelProperty, SimaiChartProperty, OffsetProperty, CaretTimeProperty);
+        AffectsRender<SimaiVisualizerControl>(TimeProperty, TrackIfProperty, ZoomLevelProperty,
+            ChartProperty, OffsetProperty, CaretTimeProperty, IsAnimatedProperty);
     }
-    class CustomDrawOp : ICustomDrawOperation
+
+    private sealed class AnimationState
     {
-        private readonly IImmutableGlyphRunReference _noSkia;
-        private readonly TrackInfo _trackInfo;
-        private readonly SimaiChart _simaiChart;
-        private readonly double _time;
-        private readonly double _caretTime;
-        private readonly float _zoomLevel;
-        private readonly float _offset;
-        private static double _lastTime;
-        private static double _lastZoom;
-        private readonly bool _isAnimated;
-        public CustomDrawOp(Rect bounds, GlyphRun noSkia, 
-            TrackInfo trackInfo, double time, float zoomLevel,SimaiChart simaiChart,float offset, double caretTime,bool isAnimated)
-        {
-            _noSkia = noSkia.TryCreateImmutableGlyphRunReference();
-            _trackInfo = trackInfo;
-            _time = time;
-            _zoomLevel = zoomLevel;
-            _simaiChart = simaiChart;
-            _offset = offset;
-            _caretTime = caretTime;
-            _isAnimated = isAnimated;
-            Bounds = bounds;
-        }
-        public void Dispose(){}
-        public Rect Bounds { get; }
-        public bool HitTest(Point p) => true;
-        public bool Equals(ICustomDrawOperation other) => false;
-        public void Render(ImmediateDrawingContext context)
-        {
-            if (_trackInfo is null) return;
-            if (_simaiChart is null) return;
-            var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
-            if (leaseFeature == null)
-                context.DrawGlyphRun(Brushes.Red, _noSkia); //Some platform may not support it
-            else
-            {
-                using var lease = leaseFeature.Lease();
-                var canvas = lease.SkCanvas;
-                var paint = new SKPaint
-                {
-                    Style = SKPaintStyle.Fill,
-                    Color = new SKColor(0, 100, 0, 150),
-                    //StrokeCap = SKStrokeCap.Round
-                };
-                canvas.Save();
-                var width = Bounds.Width;
-                var height = Bounds.Height;
-                //Actuall Drawing here
-                //make it smooth
-                //TODO; Add Deltatime
-                if (_isAnimated)
-                {
-                    _lastTime += 0.2 * (_time - _lastTime);
-
-                }
-                else
-                {
-                    _lastTime = _time;
-                }
-
-                _lastZoom += 0.2 * (_zoomLevel - _lastZoom);
-
-                var waveLevels = _trackInfo.RawWave; 
-                if (_lastZoom > 3) waveLevels = _trackInfo.GetWaveThumbnails(2);
-                if (_lastZoom > 2) waveLevels = _trackInfo.GetWaveThumbnails(1);
-                if (_lastZoom > 1) waveLevels = _trackInfo.GetWaveThumbnails(0);
-                var songLength = _trackInfo.Length;
-                
-                var currentTime = _lastTime;
-                var step = songLength / waveLevels.Length;
-                var deltatime = _lastZoom;
-
-                var startindex = (int)((currentTime - deltatime) / step);
-                var stopindex = (int)((currentTime + deltatime) / step);
-                var linewidth = (float)(width / (stopindex - startindex));
-                var points = new List<SKPoint>();
-
-                for (var i = startindex; i < stopindex; i++)
-                {
-                    if (i < 0) i = 0;
-                    if (i >= waveLevels.Length - 1) break;
-
-                    var x = (i - startindex) * linewidth;
-                    var y = waveLevels[i] / 65535f * height + height / 2;
-
-                    points.Add(new SKPoint((float)x, (float)y));
-                }
-                canvas.DrawPoints(SKPointMode.Polygon, points.ToArray(), paint);
-
-                paint.IsAntialias = true;
-
-                //Draw Bpm Lines
-                var lastbpm = -1f;
-                var bpmChangeTimes = new List<double>();
-                var bpmChangeValues = new List<float>();
-
-                //scan to get bpm change time and value
-                foreach (var timing in _simaiChart.CommaTimings)
-                {
-                    if (timing.Bpm != lastbpm)
-                    {
-                        bpmChangeTimes.Add(timing.Timing+_offset);
-                        bpmChangeValues.Add(timing.Bpm);
-                        lastbpm = timing.Bpm;
-                    }
-                }
-                bpmChangeTimes.Add(_trackInfo.Length);
-
-                double time = bpmChangeTimes.FirstOrDefault(); //initial offset
-                var signature = 4; // Time signature
-                var currentBeat = 1;
-                double timePerBeat;
-                paint.Color = SKColors.Yellow;
-                paint.StrokeWidth = 1;
-                var strongBeat = new List<double>();
-                var weakBeat = new List<double>();
-
-                for (var i = 1; i < bpmChangeTimes.Count; i++)
-                {
-                    if (time - currentTime > deltatime) continue;
-                    var x = ((float)(time / step) - startindex) * linewidth;
-                    canvas.DrawText(bpmChangeValues[i - 1].ToString(),(float)x+3f,10,paint);
-
-
-                    while (time < bpmChangeTimes[i] - 0.05)
-                    {
-                        if (currentBeat > signature) currentBeat = 1;
-                        timePerBeat = 60.0 / bpmChangeValues[i - 1];
-
-                        if (currentBeat == 1)
-                            strongBeat.Add(time);
-                        else
-                            weakBeat.Add(time);
-
-                        currentBeat++;
-                        time += timePerBeat;
-                    }
-
-                    time = bpmChangeTimes[i];
-                    currentBeat = 1;
-                }
-
-                foreach (var btime in strongBeat)
-                {
-                    if (btime - currentTime > deltatime) continue;
-                    var x = ((float)(btime / step) - startindex) * linewidth;
-                    canvas.DrawLine((float)x, 0, (float)x, (float)height, paint);
-                }
-
-                foreach (var btime in weakBeat)
-                {
-                    if (btime - currentTime > deltatime) continue;
-                    var x = ((float)(btime / step) - startindex) * linewidth;
-                    canvas.DrawLine((float)x, 0, (float)x, 10, paint);
-                }
-
-                //timing white line
-                paint.Color = SKColors.White;
-                foreach (var note in _simaiChart.CommaTimings)
-                {
-                    time = note.Timing + _offset;
-                    if (time - currentTime > deltatime) continue;
-                    var x = ((float)(time / step) - startindex) * linewidth;
-                    canvas.DrawLine((float)x, (float)height -10, (float)x, (float)height, paint);
-                }
-
-                paint.Color = new SKColor(200, 0, 0, 200);
-                paint.StrokeWidth = 2;
-                canvas.DrawLine((float)width / 2, 15, (float)width / 2, (float)height-15, paint);
-
-                paint.Style = SKPaintStyle.Stroke;
-                // Draw notes
-                foreach (var note in _simaiChart.NoteTimings)
-                {
-                    time = note.Timing + _offset;
-                    if (time - currentTime > deltatime) continue;
-                    var notes = note.Notes;
-                    var isEach = notes.Count(o => !o.IsSlideNoHead) > 1;
-                    var x = (float)(((float)(time / step) - startindex) * linewidth);
-
-                    foreach (var noteD in notes)
-                    {
-                        var seprate = (height - 30f) / 8f;
-                        var y = (float)(noteD.StartPosition * seprate + 10f);
-
-                        if (noteD.IsHanabi)
-                        {
-                            var xDeltaHanabi = (float)(1f / step) * linewidth; // Hanabi is 1s due to frame analyze
-                            var rectangleF = new SKRect(x, 0, x + xDeltaHanabi, (float)height);
-
-                            if (noteD.Type == SimaiNoteType.TouchHold)
-                                rectangleF.Left += (float)(noteD.HoldTime / step) * linewidth;
-
-                            using (var paint1 = new SKPaint())
-                            {
-                                paint1.Shader = SKShader.CreateLinearGradient(
-                                    new SKPoint(rectangleF.Left, rectangleF.Top),
-                                    new SKPoint(rectangleF.Right, rectangleF.Top),
-                                    new[] { new SKColor(255, 0, 0, 100), new SKColor(255, 0, 0, 0) },
-                                    null,
-                                    SKShaderTileMode.Clamp
-                                );
-                                canvas.DrawRect(rectangleF, paint1);
-                            }
-                        }
-
-                        switch (noteD.Type)
-                        {
-                            case SimaiNoteType.Tap:
-                                paint.StrokeWidth = noteD.IsForceStar ? 3 : 2;
-                                paint.Color = noteD.IsBreak ? SKColors.OrangeRed :
-                                              isEach ? SKColors.Gold :
-                                              SKColors.LightPink;
-
-                                if (noteD.IsForceStar)
-                                {
-                                    canvas.DrawText("*", x - 7f, y - 7f, new SKPaint
-                                    {
-                                        Color = paint.Color,
-                                        TextSize = 12,
-                                        Typeface = SKTypeface.FromFamilyName("Consolas", SKFontStyle.Bold)
-                                    });
-                                }
-                                else
-                                {
-                                    canvas.DrawOval(x, y, 3.5f, 3.5f, paint);
-                                }
-                                break;
-
-                            case SimaiNoteType.Touch:
-                                paint.StrokeWidth = 2;
-                                paint.Color = isEach ? SKColors.Gold : SKColors.DeepSkyBlue;
-                                canvas.DrawRect(x - 2.5f, y - 2.5f, 7, 7, paint);
-                                break;
-
-                            case SimaiNoteType.Hold:
-                                paint.StrokeWidth = 3.5f;
-                                paint.Color = noteD.IsBreak ? SKColors.OrangeRed :
-                                              isEach ? SKColors.Gold :
-                                              SKColors.LightPink;
-
-                                var xRight = (float)(x + (noteD.HoldTime / step) * linewidth);
-                                if (!float.IsNormal(xRight)) xRight = ushort.MaxValue;
-                                if (xRight - x < 1f) xRight = x + 5;
-                                canvas.DrawLine(x, y, xRight, y, paint);
-                                break;
-
-                            case SimaiNoteType.TouchHold:
-                                paint.StrokeWidth = 3.5f;
-                                var xDelta = (float)(noteD.HoldTime / step) * linewidth / 4f;
-                                if (!float.IsNormal(xDelta)) xDelta = ushort.MaxValue;
-                                if (xDelta < 1f) xDelta = 1;
-
-                                var colors = new[] { SKColors.Orange, SKColors.Yellow, SKColors.Green, SKColors.Blue };
-                                for (var j = 0; j < 4; j++)
-                                {
-                                    paint.Color = colors[j];
-                                    canvas.DrawLine(x, y, x + xDelta * (4 - j), y, paint);
-                                }
-                                break;
-
-                            case SimaiNoteType.Slide:
-                                paint.StrokeWidth = 1.5f;
-
-                                if (!noteD.IsSlideNoHead)
-                                {
-                                    paint.Color = noteD.IsBreak ? SKColors.OrangeRed :
-                                                  isEach ? SKColors.Gold :
-                                                  SKColors.DeepSkyBlue;
-                                    var rad = 5f;
-                                    var rad2 = rad * 1.414f / 2f;
-                                    canvas.DrawLine(x - rad2, y - rad2, x + rad2, y + rad2, paint);
-                                    canvas.DrawLine(x + rad2, y - rad2, x - rad2, y + rad2, paint);
-                                    canvas.DrawLine(x, y - rad, x, y + rad, paint);
-                                    canvas.DrawLine(x - rad, y, x + rad, y, paint);
-                                }
-
-                                paint.StrokeWidth = 3.5f;
-                                paint.Color = noteD.IsSlideBreak ? SKColors.OrangeRed :
-                                              notes.Count(o => o.Type == SimaiNoteType.Slide) >= 2 ? SKColors.Gold :
-                                              SKColors.SkyBlue;
-                                paint.PathEffect = SKPathEffect.CreateDash(new float[] { 4, 4 }, 0);
-                                var xSlide = (float)((noteD.SlideStartTime+_offset) / step - startindex) * linewidth;
-                                var xSlideRight = (float)(noteD.SlideTime / step) * linewidth + xSlide;
-
-                                if (!float.IsNormal(xSlideRight)) xSlideRight = ushort.MaxValue;
-                                if (!float.IsNormal(xSlide)) xSlide = ushort.MaxValue;
-
-                                canvas.DrawLine(xSlide, y, xSlideRight, y, paint);
-                                paint.PathEffect = null;
-                                break;
-                        }
-                    }
-                }
-
-                time = _caretTime + _offset;
-                if (time - currentTime <= deltatime)
-                {
-                    //Draw ghost cusor
-                    paint.Color = SKColors.Orange;
-                    paint.Style = SKPaintStyle.Fill;
-                    var x2 = (float)(time / step - startindex) * linewidth;
-                    SKPoint[] tranglePoints2 = { new(x2 - 5, 0), new(x2 + 5, 0), new(x2, 8f)};
-                    var path = new SKPath();
-                    path.MoveTo(tranglePoints2[0]);
-                    foreach (var point in tranglePoints2) path.LineTo(point);
-                    path.Close();
-                    canvas.DrawPath(path, paint);
-                }
-                
-                canvas.Restore();
-            }
-        }
+        public double Time;
+        public double Zoom;
     }
+
+    private void RequestNextAnimationFrame()
+    {
+        if (Interlocked.Exchange(ref _animationFramePending, 1) != 0)
+            return;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            Volatile.Write(ref _animationFramePending, 0);
+            InvalidateVisual();
+        }, DispatcherPriority.Background);
+    }
+
     public override void Render(DrawingContext context)
     {
-        context.Custom(new CustomDrawOp(new Rect(0, 0, Bounds.Width, Bounds.Height), _noSkia,
-            TrackIf, Time, ZoomLevel, SimaiChart, Offset, CaretTime, IsAnimated));
-        Dispatcher.UIThread.InvokeAsync(InvalidateVisual, DispatcherPriority.Background);
+        if (TrackIf is null) return;
+
+        context.Custom(new CustomDrawOp(new Rect(0, 0, Bounds.Width, Bounds.Height),
+            TrackIf, Time, ZoomLevel, Chart, Signatures ?? [], Offset, CaretTime,
+            IsAnimated, _animationState, RequestNextAnimationFrame));
+    }
+
+    private sealed class CustomDrawOp(Rect bounds,
+        TrackInfo trackInfo, double time, float zoomLevel,
+        SimaiChart chart, List<(double, int, int)> signatures,
+        float offset, double caretTime, bool isAnimated,
+        AnimationState animationState, Action requestNextFrame) : ICustomDrawOperation
+    {
+        // Note colors
+        private static readonly SKColor WaveformColor = new(0, 100, 0, 150);
+        private static readonly SKColor BpmLineColor = SKColors.Yellow;
+        private static readonly SKColor TimingTickColor = SKColors.White;
+        private static readonly SKColor TapColor = SKColors.LightPink;
+        private static readonly SKColor TouchColor = SKColors.DeepSkyBlue;
+        private static readonly SKColor StarColor = SKColors.DeepSkyBlue;
+        private static readonly SKColor SlideColor = SKColors.SkyBlue;
+        private static readonly SKColor BreakColor = SKColors.OrangeRed;
+        private static readonly SKColor EachColor = SKColors.Gold;
+        private static readonly SKColor MineColor = new(0x4F, 0x4F, 0x4F);
+        private static readonly SKColor MineBreakColor = new(0x83, 0x83, 0x83);
+        private static readonly SKColor MineSlideColor = new(0x4F, 0x4F, 0x4F);
+        private static readonly SKColor CaretColor = new(200, 0, 0, 200);
+        private static readonly SKColor GhostCursorColor = SKColors.Orange;
+
+        private static readonly float[] DashIntervals = [4, 4];
+        private static readonly SKPathEffect DashEffect = SKPathEffect.CreateDash(DashIntervals, 0);
+
+        // TouchHold layer colors
+        private static readonly SKColor TouchHoldLayer1 = new(0x00, 0xA5, 0xF7);
+        private static readonly SKColor TouchHoldLayer2 = new(0x16, 0xAC, 0x6E);
+        private static readonly SKColor TouchHoldLayer3 = new(0xF6, 0xEB, 0x00);
+        private static readonly SKColor TouchHoldLayer4 = new(0xF7, 0x46, 0x01);
+        private static readonly SKColor[] TouchHoldMineColors = [MineBreakColor, MineColor, MineBreakColor, MineColor];
+        private static readonly SKColor[] TouchHoldNormalColors = [TouchHoldLayer1, TouchHoldLayer2, TouchHoldLayer3, TouchHoldLayer4];
+        private ReadOnlySpan<SimaiTiming> _timings => chart.IsDisposed ? default : chart.Timings;
+        private readonly double _caretTime = caretTime;
+
+        public Rect Bounds { get; } = bounds;
+
+        public void Dispose() { }
+        public bool HitTest(Point p) => true;
+        public bool Equals(ICustomDrawOperation? other) => false;
+
+        private static int LowerBound(IReadOnlyList<double> values, double target)
+        {
+            var low = 0;
+            var high = values.Count;
+            while (low < high)
+            {
+                var middle = low + ((high - low) >> 1);
+                if (values[middle] < target)
+                    low = middle + 1;
+                else
+                    high = middle;
+            }
+            return low;
+        }
+
+        private static int LowerBound(ReadOnlySpan<SimaiTiming> timings, double target)
+        {
+            var low = 0;
+            var high = timings.Length;
+            while (low < high)
+            {
+                var middle = low + ((high - low) >> 1);
+                if (timings[middle].Time < target)
+                    low = middle + 1;
+                else
+                    high = middle;
+            }
+            return low;
+        }
+
+        public void Render(ImmediateDrawingContext context)
+        {
+            if (trackInfo is null) return;
+
+            var leaseFeature = context.TryGetFeature<ISkiaSharpApiLeaseFeature>();
+            if (leaseFeature is null)
+            {
+                Debug.WriteLine("SkiaSharp lease feature not available. Cannot render waveform.");
+                return;
+            }
+
+            using var lease = leaseFeature.Lease();
+            var canvas = lease.SkCanvas;
+
+            Paint.Reset();
+            Paint.Style = SKPaintStyle.Fill;
+            Paint.Color = WaveformColor;
+            canvas.Save();
+
+            var width = Bounds.Width;
+            var height = Bounds.Height;
+
+            // Smooth animation interpolation.
+            if (isAnimated)
+            {
+                animationState.Time += 0.2 * (time - animationState.Time);
+                animationState.Zoom += 0.2 * (zoomLevel - animationState.Zoom);
+            }
+            else
+            {
+                animationState.Time = time;
+                animationState.Zoom = zoomLevel;
+            }
+
+            if (isAnimated &&
+                (Math.Abs(time - animationState.Time) > 0.005 ||
+                 Math.Abs(zoomLevel - animationState.Zoom) > 0.005))
+                requestNextFrame();
+
+            // Pick zoom-level wave thumbnail.
+            var waveLevels = trackInfo.RawWave;
+            if (animationState.Zoom > 3) waveLevels = trackInfo.GetWaveThumbnails(2);
+            else if (animationState.Zoom > 2) waveLevels = trackInfo.GetWaveThumbnails(1);
+            else if (animationState.Zoom > 1) waveLevels = trackInfo.GetWaveThumbnails(0);
+
+            var songLength = trackInfo.Length;
+            var currentTime = animationState.Time;
+            var step = songLength / waveLevels.Length;
+            var deltatime = animationState.Zoom;
+
+            // Draw waveform.
+            var startIndex = (int)((currentTime - deltatime) / step);
+            var stopIndex = (int)((currentTime + deltatime) / step);
+            var linewidth = (float)(width / (stopIndex - startIndex));
+            var virtualStartIndex = (double)startIndex;
+
+            var wavePoints = new List<SKPoint>();
+            for (var i = startIndex; i < stopIndex && i < waveLevels.Length - 1; i++)
+            {
+                if (i < 0) continue;
+                var x = (i - startIndex) * linewidth;
+                var y = waveLevels[i] / 65535f * height + height / 2;
+                wavePoints.Add(new SKPoint((float)x, (float)y));
+            }
+            canvas.DrawPoints(SKPointMode.Polygon, wavePoints.ToArray(), Paint);
+
+            Paint.IsAntialias = true;
+
+            if (_timings.IsEmpty) return;
+
+            // Recompute BPM changes and beats from scratch each frame.
+            var bpmChangeTimes = new List<double>(32);
+            var bpmChangeValues = new List<float>(32);
+            var lastBpm = -1f;
+            foreach (var timing in _timings)
+            {
+                if (timing.Bpm != lastBpm)
+                {
+                    bpmChangeTimes.Add(timing.Time + offset);
+                    bpmChangeValues.Add(timing.Bpm);
+                    lastBpm = timing.Bpm;
+                }
+            }
+            bpmChangeTimes.Add(trackInfo.Length);
+
+            var strongBeats = new List<double>(64);
+            var weakBeats = new List<double>(128);
+            var timeBeats = bpmChangeTimes.Count > 0 ? bpmChangeTimes[0] : 0;
+            var signatureNum = 4;
+            var signatureDeno = 4;
+            var currentBeat = 1;
+            for (var i = 1; i < bpmChangeTimes.Count; i++)
+            {
+                while (timeBeats < bpmChangeTimes[i] - 0.05)
+                {
+                    for (var s = signatures.Count - 1; s >= 0; s--)
+                    {
+                        if (timeBeats > signatures[s].Item1 - 0.05)
+                        {
+                            signatureNum = signatures[s].Item2;
+                            signatureDeno = signatures[s].Item3;
+                            break;
+                        }
+                    }
+
+                    if (currentBeat > signatureNum) currentBeat = 1;
+                    var timePerBeat = 60.0 / bpmChangeValues[i - 1] * 4 / signatureDeno;
+
+                    if (currentBeat == 1)
+                        strongBeats.Add(timeBeats);
+                    else
+                        weakBeats.Add(timeBeats);
+
+                    currentBeat++;
+                    timeBeats += timePerBeat;
+                }
+                timeBeats = bpmChangeTimes[i];
+                currentBeat = 1;
+            }
+
+            Paint.Color = BpmLineColor;
+            Paint.StrokeWidth = 1;
+
+            var visibleStartTime = currentTime - deltatime;
+            var visibleEndTime = currentTime + deltatime;
+            var firstBpmIndex = Math.Max(0, LowerBound(bpmChangeTimes, visibleStartTime) - 1);
+            for (var i = firstBpmIndex; i < bpmChangeValues.Count; i++)
+            {
+                var t = bpmChangeTimes[i];
+                if (t > visibleEndTime) break;
+                var x = (float)((t / step - virtualStartIndex) * linewidth);
+                canvas.DrawText(bpmChangeValues[i].ToString(), x + 3f, 10, TextFont, Paint);
+            }
+
+            foreach (var beatTime in strongBeats)
+            {
+                if (beatTime < visibleStartTime) continue;
+                if (beatTime > visibleEndTime) break;
+                var x = (float)((beatTime / step - virtualStartIndex) * linewidth);
+                canvas.DrawLine(x, 0, x, (float)height, Paint);
+            }
+
+            foreach (var beatTime in weakBeats)
+            {
+                if (beatTime < visibleStartTime) continue;
+                if (beatTime > visibleEndTime) break;
+                var x = (float)((beatTime / step - virtualStartIndex) * linewidth);
+                canvas.DrawLine(x, 0, x, 10, Paint);
+            }
+
+            // Caret line.
+            Paint.Color = CaretColor;
+            Paint.StrokeWidth = 2;
+            canvas.DrawLine((float)width / 2, 15, (float)width / 2, (float)height - 15, Paint);
+
+            Paint.Style = SKPaintStyle.Stroke;
+
+            // Draw timing white lines + notes.
+            var firstNoteIndex = LowerBound(_timings, visibleStartTime - offset - 10.0);
+            for (var noteIndex = firstNoteIndex; noteIndex < _timings.Length; noteIndex++)
+            {
+                var timing = _timings[noteIndex];
+                var t = timing.Time + offset;
+                if (t > visibleEndTime) break;
+                var notes = timing.Notes;
+
+                Paint.Color = TimingTickColor;
+                var xTick = (float)((t / step - virtualStartIndex) * linewidth);
+                canvas.DrawLine(xTick, (float)height - 10, xTick, (float)height, Paint);
+
+                var x = (float)((t / step - virtualStartIndex) * linewidth);
+                var separate = (height - 30f) / 8f;
+
+                foreach (var note in notes)
+                {
+                    var y = (float)(note.StartPos * separate + 10f);
+
+                    if (note.IsHanabi)
+                    {
+                        var xDeltaHanabi = (float)(1f / step) * linewidth; // Hanabi is 1s due to frame analyze.
+                        var rectF = new SKRect(x, 0, x + xDeltaHanabi, (float)height);
+                        if (note.Type == SimaiNoteType.TOUCHHOLD)
+                            rectF.Left += (float)(note.Duration / step) * linewidth;
+
+                        canvas.Save();
+                        canvas.Translate(rectF.Left, rectF.Top);
+                        canvas.Scale(Math.Max(rectF.Width, 0.0001f), 1);
+                        canvas.DrawRect(new SKRect(0, 0, 1, rectF.Height), HanabiPaint);
+                        canvas.Restore();
+                    }
+
+                    switch (note.Type)
+                    {
+                        case SimaiNoteType.TAP:
+                            Paint.Color = note.IsMine ? (note.IsBreak ? MineBreakColor : MineColor) :
+                                          note.IsBreak ? BreakColor :
+                                          note.IsEach ? EachColor :
+                                          note.IsStar ? StarColor :
+                                          TapColor;
+                            if (note.IsStar)
+                            {
+                                Paint.StrokeWidth = 2;
+                                var matrix = SKMatrix.CreateTranslation(x, y);
+                                using var transformed = new SKPath();
+                                StarPath.Transform(matrix, transformed);
+                                canvas.DrawPath(transformed, Paint);
+                            }
+                            else
+                            {
+                                Paint.StrokeWidth = 2;
+                                canvas.DrawOval(x, y, 3.5f, 3.5f, Paint);
+                            }
+                            break;
+
+                        case SimaiNoteType.TOUCH:
+                            Paint.StrokeWidth = 2;
+                            Paint.Color = note.IsMine ? (note.IsBreak ? MineBreakColor : MineColor) :
+                                          note.IsEach ? EachColor : TouchColor;
+                            canvas.DrawRect(x - 2.5f, y - 2.5f, 7, 7, Paint);
+                            break;
+
+                        case SimaiNoteType.HOLD:
+                            Paint.StrokeWidth = 3.5f;
+                            Paint.Color = note.IsMine ? (note.IsBreak ? MineBreakColor : MineColor) :
+                                          note.IsBreak ? BreakColor :
+                                          note.IsEach ? EachColor :
+                                          TapColor;
+                            var xRight = (float)(x + (note.Duration / step) * linewidth);
+                            if (!float.IsNormal(xRight)) xRight = ushort.MaxValue;
+                            if (xRight - x < 1f) xRight = x + 5;
+                            canvas.DrawLine(x, y, xRight, y, Paint);
+                            break;
+
+                        case SimaiNoteType.TOUCHHOLD:
+                            Paint.StrokeWidth = 3.5f;
+                            var xDelta = (float)(note.Duration / step) * linewidth / 4f;
+                            if (!float.IsNormal(xDelta)) xDelta = ushort.MaxValue;
+                            if (xDelta < 1f) xDelta = 1;
+                            var touchHoldColors = note.IsMine ? TouchHoldMineColors : TouchHoldNormalColors;
+                            for (var j = 0; j < 4; j++)
+                            {
+                                Paint.Color = touchHoldColors[j];
+                                canvas.DrawLine(x, y, x + xDelta * (4 - j), y, Paint);
+                            }
+                            break;
+
+                        case SimaiNoteType.SLIDE:
+                            Paint.StrokeWidth = 3.5f;
+                            Paint.Color = note.IsMine ? MineSlideColor :
+                                          note.IsBreak ? BreakColor :
+                                          note.IsEach ? EachColor :
+                                          SlideColor;
+                            Paint.PathEffect = DashEffect;
+                            var xSlide = (float)((timing.Time + note.SlideShootDelay + offset) / step - virtualStartIndex) * linewidth;
+                            var xSlideRight = (float)(note.Duration / step) * linewidth + xSlide;
+                            if (!float.IsNormal(xSlideRight)) xSlideRight = ushort.MaxValue;
+                            if (!float.IsNormal(xSlide)) xSlide = ushort.MaxValue;
+                            canvas.DrawLine(xSlide, y, xSlideRight, y, Paint);
+                            Paint.PathEffect = null;
+                            break;
+                    }
+                }
+            }
+
+            // Ghost cursor.
+            var caretTime = _caretTime + offset;
+            if (caretTime - currentTime <= deltatime)
+            {
+                Paint.Color = GhostCursorColor;
+                Paint.Style = SKPaintStyle.Fill;
+                var x2 = (float)(caretTime / step - virtualStartIndex) * linewidth;
+                canvas.Save();
+                canvas.Translate(x2, 0);
+                canvas.DrawPath(CursorPath, Paint);
+                canvas.Restore();
+            }
+
+            canvas.Restore();
+        }
     }
 }

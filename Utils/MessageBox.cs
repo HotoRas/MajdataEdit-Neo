@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using MsBox.Avalonia;
@@ -23,9 +23,10 @@ internal static class MessageBox
                                                   string title,
                                                   ButtonEnum button,
                                                   Icon icon,
+                                                  object? context,
                                                   WindowStartupLocation startupLocation)
     {
-        return MessageBoxManager.GetMessageBoxStandard(title, content, button, icon, startupLocation);
+        return MessageBoxManager.GetMessageBoxStandard(title, content, button, icon, context, startupLocation);
     }
     static IMsBox<ButtonResult> GetStandardMsgBoxInternal(MessageBoxStandardParams msgBoxParams)
     {
@@ -35,9 +36,10 @@ internal static class MessageBox
                                                        string title = "Message",
                                                        ButtonEnum button = ButtonEnum.Ok,
                                                        Icon icon = Icon.None,
+                                                       object? context = null,
                                                        WindowStartupLocation startupLocation = WindowStartupLocation.CenterScreen)
     {
-        return await GetStandardMsgBoxInternal(content, title, button, icon, startupLocation).ShowAsync();
+        return await GetStandardMsgBoxInternal(content, title, button, icon, context, startupLocation).ShowAsync();
     }
     internal static async Task<ButtonResult> ShowAsync(MessageBoxStandardParams msgBoxParams)
     {
@@ -47,9 +49,10 @@ internal static class MessageBox
                                                              string title = "Message",
                                                              ButtonEnum button = ButtonEnum.Ok,
                                                              Icon icon = Icon.None,
+                                                             object? context = null,
                                                              WindowStartupLocation startupLocation = WindowStartupLocation.CenterScreen)
     {
-        return await GetStandardMsgBoxInternal(content, title, button, icon, startupLocation).ShowWindowAsync();
+        return await GetStandardMsgBoxInternal(content, title, button, icon, context, startupLocation).ShowWindowAsync();
     }
     internal static async Task<ButtonResult> ShowWindowAsync(MessageBoxStandardParams msgBoxParams)
     {
@@ -59,79 +62,74 @@ internal static class MessageBox
                                                                    string title = "Message",
                                                                    ButtonEnum button = ButtonEnum.Ok,
                                                                    Icon icon = Icon.None,
-                                                                   WindowStartupLocation startupLocation = WindowStartupLocation.CenterScreen)
+                                                                   object? context = null,
+                                                                   WindowStartupLocation startupLocation = WindowStartupLocation.CenterScreen,
+                                                                   Window? owner = null)
     {
-        if(MainWindow is null)
+        var window = owner ?? MainWindow;
+        if (window is null)
         {
-            return await GetStandardMsgBoxInternal(content, title, button, icon, startupLocation).ShowWindowAsync();
+            return await GetStandardMsgBoxInternal(content, title, button, icon, context, startupLocation).ShowWindowAsync();
         }
         else
         {
-            return await GetStandardMsgBoxInternal(content, title, button, icon, startupLocation).ShowWindowDialogAsync(MainWindow);
+            return await GetStandardMsgBoxInternal(content, title, button, icon, context, startupLocation).ShowWindowDialogAsync(window);
         }
     }
-    internal static async Task<ButtonResult> ShowWindowDialogAsync(MessageBoxStandardParams msgBoxParams)
+
+    internal static async Task<ButtonResult> ShowWindowDialogAsync(MessageBoxStandardParams msgBoxParams, Window? owner = null)
     {
-        if (MainWindow is null)
+        var window = owner ?? MainWindow;
+        if (window is null)
         {
             return await GetStandardMsgBoxInternal(msgBoxParams).ShowWindowAsync();
         }
         else
         {
-            return await GetStandardMsgBoxInternal(msgBoxParams).ShowWindowDialogAsync(MainWindow);
+            return await GetStandardMsgBoxInternal(msgBoxParams).ShowWindowDialogAsync(window);
         }
     }
+
     internal static async Task<ButtonResult> ShowWindowDialogAsync(string content,
                                                                    Window owner,
                                                                    string title = "Message",
                                                                    ButtonEnum button = ButtonEnum.Ok,
                                                                    Icon icon = Icon.None,
+                                                                   object? context = null,
                                                                    WindowStartupLocation startupLocation = WindowStartupLocation.CenterScreen)
     {
-        return await GetStandardMsgBoxInternal(content, title, button, icon, startupLocation).ShowWindowDialogAsync(owner);
-    }
-    internal static async Task<ButtonResult> ShowWindowDialogAsync(MessageBoxStandardParams msgBoxParams, Window owner)
-    {
-        return await GetStandardMsgBoxInternal(msgBoxParams).ShowWindowDialogAsync(owner);
+        return await GetStandardMsgBoxInternal(content, title, button, icon, context, startupLocation).ShowWindowDialogAsync(owner);
     }
     internal static async Task<ButtonResult> ShowAsPopupAsync(string content,
                                                               string title = "Message",
                                                               ButtonEnum button = ButtonEnum.Ok,
                                                               Icon icon = Icon.None,
-                                                              WindowStartupLocation startupLocation = WindowStartupLocation.CenterScreen)
+                                                              object? context = null,
+                                                              WindowStartupLocation startupLocation = WindowStartupLocation.CenterScreen,
+                                                              ContentControl? owner = null)
     {
-        if (MainWindow is null)
+        var control = owner ?? MainWindow;
+        if (control is null)
         {
-            return await GetStandardMsgBoxInternal(content, title, button, icon, startupLocation).ShowWindowAsync();
+            return await GetStandardMsgBoxInternal(content, title, button, icon, context, startupLocation).ShowWindowAsync();
         }
         else
         {
-            return await GetStandardMsgBoxInternal(content, title, button, icon, startupLocation).ShowAsPopupAsync(MainWindow);
+            return await GetStandardMsgBoxInternal(content, title, button, icon, context, startupLocation).ShowAsPopupAsync(control);
         }
     }
-    internal static async Task<ButtonResult> ShowAsPopupAsync(MessageBoxStandardParams msgBoxParams)
+
+    internal static async Task<ButtonResult> ShowAsPopupAsync(MessageBoxStandardParams msgBoxParams, ContentControl? owner = null)
     {
-        if (MainWindow is null)
+        var control = owner ?? MainWindow;
+        if (control is null)
         {
             return await GetStandardMsgBoxInternal(msgBoxParams).ShowWindowAsync();
         }
         else
         {
-            return await GetStandardMsgBoxInternal(msgBoxParams).ShowAsPopupAsync(MainWindow);
+            return await GetStandardMsgBoxInternal(msgBoxParams).ShowAsPopupAsync(control);
         }
-    }
-    internal static async Task<ButtonResult> ShowAsPopupAsync(string content,
-                                                              Window owner,
-                                                              string title = "Message",
-                                                              ButtonEnum button = ButtonEnum.Ok,
-                                                              Icon icon = Icon.None,
-                                                              WindowStartupLocation startupLocation = WindowStartupLocation.CenterScreen)
-    {
-        return await GetStandardMsgBoxInternal(content, title, button, icon, startupLocation).ShowAsPopupAsync(owner);
-    }
-    internal static async Task<ButtonResult> ShowAsPopupAsync(MessageBoxStandardParams msgBoxParams, Window owner)
-    {
-        return await GetStandardMsgBoxInternal(msgBoxParams).ShowAsPopupAsync(owner);
     }
 
     internal static async Task<ButtonResult> ShowAsPopupAsync(string content,
@@ -139,12 +137,9 @@ internal static class MessageBox
                                                               string title = "Message",
                                                               ButtonEnum button = ButtonEnum.Ok,
                                                               Icon icon = Icon.None,
+                                                              object? context = null,
                                                               WindowStartupLocation startupLocation = WindowStartupLocation.CenterScreen)
     {
-        return await GetStandardMsgBoxInternal(content, title, button, icon, startupLocation).ShowAsPopupAsync(owner);
-    }
-    internal static async Task<ButtonResult> ShowAsPopupAsync(MessageBoxStandardParams msgBoxParams, ContentControl owner)
-    {
-        return await GetStandardMsgBoxInternal(msgBoxParams).ShowAsPopupAsync(owner);
+        return await GetStandardMsgBoxInternal(content, title, button, icon, context, startupLocation).ShowAsPopupAsync(owner);
     }
 }
