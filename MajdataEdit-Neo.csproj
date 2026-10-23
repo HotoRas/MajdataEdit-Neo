@@ -8,6 +8,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+    <BassLinuxX64TargetDir>runtimes/linux-x64/native</BassLinuxX64TargetDir>
+    <BassLinuxX86TargetDir>runtimes/linux-x86/native</BassLinuxX86TargetDir>
+    <BassLinuxARMTargetDir>runtimes/linux-arm/native</BassLinuxARMTargetDir>
+    <BassLinuxARM64TargetDir>runtimes/linux-arm64/native</BassLinuxARM64TargetDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -37,6 +41,7 @@
     <PackageReference Include="Lingfeng-bbben.AvaloniaEdit.TextMate" Version="11.0.6" />
     <PackageReference Include="Lingfeng-bbben.MajSimai" Version="1.14.0" />
     <PackageReference Include="ManagedBass" Version="3.1.1" />
+    <PackageReference Include="Dove.Bass.Linux" Version="1.0.0" />
     <PackageReference Include="MessageBox.Avalonia" Version="3.2.0" />
     <PackageReference Include="Tmds.DBus.Protocol" Version="0.21.3" />
     <PackageReference Include="websocketsharp.core" Version="1.0.1" />
